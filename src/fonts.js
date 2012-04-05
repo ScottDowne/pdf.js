@@ -469,7 +469,6 @@ var FontLoader = {
   // be ordered before the load in the subdocument.
   prepareFontLoadEvent: function fontLoaderPrepareFontLoadEvent(rules, names,
                                                                 fonts) {
-      /** Hack begin */
       // There's no event when a font has finished downloading so the
       // following code is a dirty hack to 'guess' when a font is
       // ready.  This code will be obsoleted by Mozilla bug 471915.
@@ -501,6 +500,29 @@ var FontLoader = {
         return;
       }
 
+      document.addEventListener( "fontready", function( e ) {
+        for (var i = 0, ii = fonts.length; i < ii; ++i) {
+          var font = fonts[i];
+          font.loading = false;
+        }
+        var evt = document.createEvent('Events');
+        evt.initEvent('pdfjsFontLoad', true, false);
+        document.documentElement.dispatchEvent(evt);
+      }, false );
+
+      var fileref=document.createElement("style"),
+          innerHTML = "";
+      fileref.setAttribute("rel", "stylesheet");
+      fileref.setAttribute("type", "text/css");
+
+      for (var i = 0, ii = rules.length; i < ii; ++i) {
+        innerHTML += rules[0];
+      }
+
+      fileref.innerHTML = innerHTML;
+
+      document.getElementsByTagName("head")[0].appendChild(fileref);
+
       var div = document.createElement('div');
       div.setAttribute('style',
                        'visibility: hidden;' +
@@ -512,55 +534,6 @@ var FontLoader = {
       }
       div.innerHTML = html;
       document.body.appendChild(div);
-
-      if (!this.listeningForFontLoad) {
-        window.addEventListener(
-          'message',
-          function fontLoaderMessage(e) {
-            var fontNames = JSON.parse(e.data);
-            for (var i = 0, ii = fonts.length; i < ii; ++i) {
-              var font = fonts[i];
-              font.loading = false;
-            }
-            var evt = document.createEvent('Events');
-            evt.initEvent('pdfjsFontLoad', true, false);
-            document.documentElement.dispatchEvent(evt);
-          },
-          false);
-        this.listeningForFontLoad = true;
-      }
-
-      // XXX we should have a time-out here too, and maybe fire
-      // pdfjsFontLoadFailed?
-      var src = '<!DOCTYPE HTML><html><head>';
-      src += '<style type="text/css">';
-      for (var i = 0, ii = rules.length; i < ii; ++i) {
-        src += rules[i];
-      }
-      src += '</style>';
-      src += '<script type="application/javascript">';
-      var fontNamesArray = '';
-      for (var i = 0, ii = names.length; i < ii; ++i) {
-        fontNamesArray += '"' + names[i] + '", ';
-      }
-      src += '  var fontNames=[' + fontNamesArray + '];\n';
-      src += '  window.onload = function fontLoaderOnload() {\n';
-      src += '    parent.postMessage(JSON.stringify(fontNames), "*");\n';
-      src += '  }';
-      // Hack so the end script tag isn't counted if this is inline JS.
-      src += '</scr' + 'ipt></head><body>';
-      for (var i = 0, ii = names.length; i < ii; ++i) {
-        src += '<p style="font-family:\'' + names[i] + '\'">Hi</p>';
-      }
-      src += '</body></html>';
-      var frame = document.createElement('iframe');
-      frame.src = 'data:text/html,' + src;
-      frame.setAttribute('style',
-                         'visibility: hidden;' +
-                         'width: 10px; height: 10px;' +
-                         'position: absolute; top: 0px; left: 0px;');
-      document.body.appendChild(frame);
-      /** Hack end */
   }
 };
 
